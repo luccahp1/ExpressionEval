@@ -224,11 +224,11 @@ namespace gats {
 	The identifier is used to indicate execution order (lexicographical ordering) and both the class and global object name.
 */
 #define GATS_TEST_CASE(MACRO_PARAM_GTC_name, ...) \
-	static class TestCase_ ## MACRO_PARAM_GTC_name : public gats::TestApp::TestCase {\
-	public: TestCase_ ## MACRO_PARAM_GTC_name() : TestCase(#MACRO_PARAM_GTC_name, __VA_ARGS__) { }\
-	public: virtual void execute() override;\
-	} TestCase_ ## MACRO_PARAM_GTC_name ## _g;\
-	void TestCase_ ## MACRO_PARAM_GTC_name :: execute()
+        static class TestCase_ ## MACRO_PARAM_GTC_name : public gats::TestApp::TestCase {\
+        public: TestCase_ ## MACRO_PARAM_GTC_name() : TestCase(#MACRO_PARAM_GTC_name __VA_OPT__(,) __VA_ARGS__) { }\
+        public: virtual void execute() override;\
+        } TestCase_ ## MACRO_PARAM_GTC_name ## _g;\
+        void TestCase_ ## MACRO_PARAM_GTC_name :: execute()
 
 
 /*!	Creates a test case with the identifier 'name'

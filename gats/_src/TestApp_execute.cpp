@@ -58,9 +58,22 @@ the program(s) have been supplied.
 
 #include <gats/TestApp.hpp>
 #include <chrono>
+#include <cmath>
 using namespace std;
 using namespace std::chrono;
+#if defined(_WIN32)
 using namespace gats::win32;
+#else
+// Provide no-op console color helpers when Windows console support is unavailable.
+namespace gats::win32 {
+        using color_type = int;
+        inline color_type bright(color_type value) { return value; }
+        inline color_type background(color_type value) { return value; }
+        constexpr color_type red = 0, green = 0, yellow = 0, blue = 0, white = 0, cyan = 0;
+        struct ScopedAttributeState {};
+}
+using namespace gats::win32;
+#endif
 
 
 
