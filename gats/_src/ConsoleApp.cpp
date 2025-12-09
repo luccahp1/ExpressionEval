@@ -119,9 +119,11 @@ namespace gats {
 		// Collect the command-line arguments.
 		thisApp_sm->args_m.assign(argv, argv + argc);
 
-		// Save the console state
-		if (thisApp_sm->autoRestoreWindowStateOnExit_m)
-			thisApp_sm->initialState_m = thisApp_sm->console.GetState();
+                // Save the console state (Windows only)
+#if defined(_WIN32)
+                if (thisApp_sm->autoRestoreWindowStateOnExit_m)
+                        thisApp_sm->initialState_m = thisApp_sm->console.GetState();
+#endif
 
 		// Reconfigure the console
 		thisApp_sm->setup();
@@ -157,9 +159,11 @@ namespace gats {
 		if (!wrapupCalled_m)
 			this->wrapup();
 
-		// Restore the console state
-		if (autoRestoreWindowStateOnExit_m)
-			console.SetState(initialState_m);
+                // Restore the console state (Windows only)
+#if defined(_WIN32)
+                if (autoRestoreWindowStateOnExit_m)
+                        console.SetState(initialState_m);
+#endif
 	}
 
 
