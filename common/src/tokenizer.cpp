@@ -156,13 +156,14 @@ Token::pointer_type Tokenizer::_get_number(Tokenizer::string_type::const_iterato
 	if (currentChar == end(expression) || (!isdigit(*currentChar) && *currentChar != '.'))
 		return make<Integer>(Integer::value_type(digits));
 
-	// a real number
-	digits += *currentChar++;
-	while (currentChar != end(expression) && isdigit(*currentChar))
-		digits += *currentChar++;
+        // a real number
+        digits += *currentChar++;
+        if (currentChar == end(expression) || !isdigit(*currentChar))
+                throw XTokenizer(expression, currentChar - begin(expression), "Tokenizer::Bad character in expression.");
+        while (currentChar != end(expression) && isdigit(*currentChar))
+                digits += *currentChar++;
 
-
-	return make<Real>(Real::value_type(digits));
+        return make<Real>(Real::value_type(digits));
 }
 
 
@@ -174,95 +175,166 @@ Token::pointer_type Tokenizer::_get_number(Tokenizer::string_type::const_iterato
 	@note Will throws 'BadCharacter' if the expression contains an un-tokenizable character.
 	*/
 TokenList Tokenizer::tokenize(string_type const& expression) {
-	TokenList tokenizedExpression;
-	auto currentChar = expression.cbegin();
+        TokenList tokenizedExpression;
+        auto currentChar = expression.cbegin();
 
-	for(;;)
-	{
-		// strip whitespace
-		while (currentChar != end(expression) && isspace(*currentChar))
-			++currentChar;
+        enum class PrevCategory { Start, Operand, RightParenthesis, PostfixOp, Function, Other };
+        auto classify_prev = [](Token::pointer_type const& token) {
+                if (!token)
+                        return PrevCategory::Start;
+                if (is<Operand>(token))
+                        return PrevCategory::Operand;
+                if (is<RightParenthesis>(token))
+                        return PrevCategory::RightParenthesis;
+                if (is<PostfixOperator>(token))
+                        return PrevCategory::PostfixOp;
+                if (is<Function>(token))
+                        return PrevCategory::Function;
+                return PrevCategory::Other;
+        };
 
-		// check of end of expression
-		if (currentChar == end(expression)) break;
+        PrevCategory prev = PrevCategory::Start;
 
-		// check for a number
-		if (isdigit(*currentChar)) {
-			tokenizedExpression.push_back(_get_number(currentChar, expression));
-			continue;
-		}
+        auto expect_function_paren = [&](Tokenizer::string_type::const_iterator lookahead) {
+                while (lookahead != end(expression) && isspace(*lookahead))
+                        ++lookahead;
+                if (lookahead == end(expression) || *lookahead != '(')
+                        throw XTokenizer(expression, lookahead - begin(expression), "Function not followed by (");
+        };
 
-		// check for 2-character operators
+        for(;;)
+        {
+                // strip whitespace
+                while (currentChar != end(expression) && isspace(*currentChar))
+                        ++currentChar;
+
+                // check of end of expression
+                if (currentChar == end(expression)) break;
+
+                // check for a number
+                if (isdigit(*currentChar)) {
+                        // binary literal 0b....
+                        if (*currentChar == '0') {
+                                auto nextChar = next(currentChar);
+                                if (nextChar != end(expression) && (*nextChar == 'b' || *nextChar == 'B')) {
+                                        currentChar = next(nextChar);
+                                        if (currentChar == end(expression) || (*currentChar != '0' && *currentChar != '1'))
+                                                throw XTokenizer(expression, currentChar - begin(expression), "Tokenizer::Bad character in expression.");
+                                        Integer::value_type value(0);
+                                        while (currentChar != end(expression) && (*currentChar == '0' || *currentChar == '1')) {
+                                                value <<= 1;
+                                                if (*currentChar == '1')
+                                                        value += 1;
+                                                ++currentChar;
+                                        }
+                                        tokenizedExpression.push_back(make<Integer>(value));
+                                        prev = PrevCategory::Operand;
+                                        continue;
+                                }
+                        }
+
+                        auto number = _get_number(currentChar, expression);
+                        tokenizedExpression.push_back(number);
+                        prev = classify_prev(number);
+                        continue;
+                }
+
+                // check for 2-character operators
 #define CHECK_2OP( symbol1, symbol2, token )\
-		if( *currentChar == symbol1 ) {\
-			auto nextChar = next(currentChar);\
-			if( nextChar != end(expression) && *nextChar == symbol2 ) {\
-				currentChar = next(nextChar);\
-				tokenizedExpression.push_back( make<token>() );\
-				continue;\
-			}\
-		}
-		CHECK_2OP('<', '=', LessEqual)
-		CHECK_2OP('>', '=', GreaterEqual)
-		CHECK_2OP('=', '=', Equality)
-		CHECK_2OP('!', '=', Inequality)
-		CHECK_2OP('*', '*', Power)
+                if( *currentChar == symbol1 ) {\
+                        auto nextChar = next(currentChar);\
+                        if( nextChar != end(expression) && *nextChar == symbol2 ) {\
+                                currentChar = next(nextChar);\
+                                auto tkn = make<token>();\
+                                tokenizedExpression.push_back( tkn );\
+                                prev = classify_prev(tkn);\
+                                continue;\
+                        }\
+                }
+                CHECK_2OP('<', '=', LessEqual)
+                CHECK_2OP('>', '=', GreaterEqual)
+                CHECK_2OP('=', '=', Equality)
+                CHECK_2OP('!', '=', Inequality)
+                CHECK_2OP('*', '*', Power)
 #undef CHECK_2OP
 
-			// check for 1-character operators
+                        // check for 1-character operators
 #define CHECK_OP(symbol, token)\
-		if( *currentChar == symbol ) {\
-			++currentChar;\
-			tokenizedExpression.push_back( make<token>() );\
-			continue;\
-		}
-		CHECK_OP('*', Multiplication)
-		CHECK_OP('/', Division)
-		CHECK_OP('%', Modulus)
-		CHECK_OP('(', LeftParenthesis)
-		CHECK_OP(')', RightParenthesis)
-		CHECK_OP(',', ArgumentSeparator)
-		CHECK_OP('<', Less)
-		CHECK_OP('>', Greater)
-		CHECK_OP('!', Factorial)
-		CHECK_OP('=', Assignment)
+                if( *currentChar == symbol ) {\
+                        ++currentChar;\
+                        auto tkn = make<token>();\
+                        tokenizedExpression.push_back( tkn );\
+                        prev = classify_prev(tkn);\
+                        continue;\
+                }
+                CHECK_OP('*', Multiplication)
+                CHECK_OP('/', Division)
+                CHECK_OP('%', Modulus)
+                CHECK_OP('(', LeftParenthesis)
+                CHECK_OP(')', RightParenthesis)
+                CHECK_OP(',', ArgumentSeparator)
+                CHECK_OP('<', Less)
+                CHECK_OP('>', Greater)
 #undef CHECK_OP
 
+                if (*currentChar == '!') {
+                        if (prev == PrevCategory::Operand || prev == PrevCategory::PostfixOp || prev == PrevCategory::RightParenthesis) {
+                                ++currentChar;
+                                auto tkn = make<Factorial>();
+                                tokenizedExpression.push_back(tkn);
+                                prev = classify_prev(tkn);
+                        } else {
+                                throw XTokenizer(expression, currentChar - begin(expression), "Factorial must follow Expression");
+                        }
+                        continue;
+                }
 
-		// check for multi-purpose operators
-		if (*currentChar == '+') {
-			++currentChar;
-			if (!tokenizedExpression.empty() &&
-				(is<RightParenthesis>(tokenizedExpression.back()) ||
-					is<Operand>(tokenizedExpression.back()) ||
-					is<PostfixOperator>(tokenizedExpression.back())))
-				tokenizedExpression.push_back(make<Addition>());
-			else
-				tokenizedExpression.push_back(make<Identity>());
-			continue;
-		}
-		if (*currentChar == '-') {
-			++currentChar;
-			if (!tokenizedExpression.empty() &&
-				(is<RightParenthesis>(tokenizedExpression.back()) ||
-					is<Operand>(tokenizedExpression.back()) ||
-					is<PostfixOperator>(tokenizedExpression.back())))
-				tokenizedExpression.push_back(make<Subtraction>());
-			else
-				tokenizedExpression.push_back(make<Negation>());
-			continue;
-		}
+                if (*currentChar == '=') {
+                        ++currentChar;
+                        auto tkn = make<Assignment>();
+                        tokenizedExpression.push_back(tkn);
+                        prev = classify_prev(tkn);
+                        continue;
+                }
+
+                // check for multi-purpose operators
+                if (*currentChar == '+') {
+                        ++currentChar;
+                        Token::pointer_type tkn;
+                        if (prev == PrevCategory::Operand || prev == PrevCategory::PostfixOp || prev == PrevCategory::RightParenthesis)
+                                tkn = make<Addition>();
+                        else
+                                tkn = make<Identity>();
+                        tokenizedExpression.push_back(tkn);
+                        prev = classify_prev(tkn);
+                        continue;
+                }
+                if (*currentChar == '-') {
+                        ++currentChar;
+                        Token::pointer_type tkn;
+                        if (prev == PrevCategory::Operand || prev == PrevCategory::PostfixOp || prev == PrevCategory::RightParenthesis)
+                                tkn = make<Subtraction>();
+                        else
+                                tkn = make<Negation>();
+                        tokenizedExpression.push_back(tkn);
+                        prev = classify_prev(tkn);
+                        continue;
+                }
 
 
-		// Identifiers
-		if (isalpha(*currentChar)) {
-			tokenizedExpression.push_back(_get_identifier(currentChar, expression));
-			continue;
-		}
+                // Identifiers
+                if (isalpha(*currentChar)) {
+                        auto identToken = _get_identifier(currentChar, expression);
+                        if (is<Function>(identToken))
+                                expect_function_paren(currentChar);
+                        tokenizedExpression.push_back(identToken);
+                        prev = classify_prev(identToken);
+                        continue;
+                }
 
-		// not a recognized token
-		throw XBadCharacter(expression, currentChar - begin(expression));
-	}
+                // not a recognized token
+                throw XBadCharacter(expression, currentChar - begin(expression));
+        }
 
-	return tokenizedExpression;
+        return tokenizedExpression;
 }
