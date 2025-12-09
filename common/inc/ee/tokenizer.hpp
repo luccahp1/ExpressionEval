@@ -72,12 +72,12 @@ class Tokenizer {
 public:
 	using string_type = Token::string_type;
 
-	class XTokenizer : public std::exception {
+        class XTokenizer : public std::runtime_error {
 		string_type	expression_m;
 		std::size_t	location_m;
 	public:
-		XTokenizer(string_type const& expression, std::size_t location, char const* msg)
-			: std::exception(msg)
+                XTokenizer(string_type const& expression, std::size_t location, char const* msg)
+                        : std::runtime_error(msg)
 			, expression_m(expression)
 			, location_m(location)
 		{ }

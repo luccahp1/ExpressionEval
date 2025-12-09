@@ -91,9 +91,9 @@ namespace gats {
 		ConsoleApp(bool autoRestoreWindowStateOnExit = false);
 		virtual ~ConsoleApp();
 
-		[[noreturn]] virtual void setup() {}
-		[[nodiscard]] virtual int execute();
-		[[noreturn]] virtual void wrapup() {}
+virtual void setup() {}
+[[nodiscard]] virtual int execute();
+virtual void wrapup() {}
 
 		/*!	Access the command-line arguments container.
 		*/
