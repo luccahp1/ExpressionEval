@@ -38,7 +38,7 @@ the program(s) have been supplied.
 
 	\param expression [in] The expression to tokenize.
 	*/
-inline [[nodiscard]] bool parse_test(TokenList const& infixTokenList, TokenList const& correct) {
+[[nodiscard]] inline bool parse_test(TokenList const& infixTokenList, TokenList const& correct) {
 	TokenList postfixTokenList = Parser().parse(infixTokenList);
 	bool ok = true;
 	ok = ok && (correct.size() == postfixTokenList.size());
